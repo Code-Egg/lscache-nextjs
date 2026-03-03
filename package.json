@@ -1,0 +1,23 @@
+{
+  "name": "lscache-nextjs",
+  "version": "0.1.0",
+  "description": "LSCache integration helpers for Next.js",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "litespeed",
+    "lscache",
+    "nextjs",
+    "next"
+  ],
+  "author": "",
+  "license": "MIT"
+}

@@ -31,8 +31,8 @@ jobs:
           sudo rm -rf demo
           sudo nest new demo --package-manager npm
           cd demo
-          echo "require('./dist/main');" > app.js
-          sudo npm run build; pkill lsnode
+          sudo echo "require('./dist/main');" > app.js
+          sudo npm run build; sudo pkill lsnode
 
           echo 'Download lscach-nestjs'
           sudo npm install git+https://github.com/Code-Egg/lscache-nestjs.git

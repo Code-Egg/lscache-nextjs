@@ -1,11 +1,14 @@
 {
-  "name": "lscache-nextjs",
+  "name": "lscache-nestjs",
   "version": "0.1.0",
-  "description": "LSCache integration helpers for Next.js",
+  "description": "LSCache integration helpers for Nest.js",
   "type": "module",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test"
   },
   "files": [
     "src",
@@ -15,8 +18,8 @@
   "keywords": [
     "litespeed",
     "lscache",
-    "nextjs",
-    "next"
+    "nestjs",
+    "nest"
   ],
   "author": "",
   "license": "MIT"

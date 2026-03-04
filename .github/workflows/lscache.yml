@@ -1,0 +1,38 @@
+name: lscache-nestjs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+
+      - name: Setup NestJS environment
+        shell: bash
+        run: |
+          curl -sk -o nodejssetup.sh https://raw.githubusercontent.com/litespeedtech/ls-cloud-image/master/Setup/nodejssetup.sh
+          sudo bash nodejssetup.sh
+          curl -sk -o per-instance.sh https://raw.githubusercontent.com/litespeedtech/ls-cloud-image/master/Cloud-init/per-instance.sh
+          sudo bash per-instance.sh
+          pwd
+          npm install -g @nestjs/cli
+          cd /usr/local/lsws/Example/html/
+          rm -rf demo
+          nest new nest
+          cd /nest
+          nest --version
+          echo 'Download lscach-nestjs'
+          npm install git+https://github.com/Code-Egg/lscache-nestjs.git
+          echo 'Setup test'
+          sudo curl -o app/tests/test_lscache.py https://raw.githubusercontent.com/Code-Egg/lscache-nestjs/main/tests/test_lscache.js
+          echo 'Test'

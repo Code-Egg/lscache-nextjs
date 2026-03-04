@@ -28,8 +28,8 @@ jobs:
           npm install -g @nestjs/cli
           cd /usr/local/lsws/Example/html/
           rm -rf demo
-          nest new nest
-          cd /nest
+          nest new demo
+          cd demo
           nest --version
           echo 'Download lscach-nestjs'
           npm install git+https://github.com/Code-Egg/lscache-nestjs.git

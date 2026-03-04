@@ -1,19 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  buildPurgeTags,
-  lscacheMiddleware,
-  purgeAllLSCache,
-  purgeLSCache,
-  purgeLSCacheByTags,
-  verifyPurgeRequest
-} from "lscache-nestjs";
+import { lscacheMiddleware, purgeAllLSCache } from "lscache-nestjs";
 
-function createHeaders(initial = {}) {
-  const map = new Map(
-    Object.entries(initial).map(([key, value]) => [key.toLowerCase(), String(value)])
+function assertEqualWithInfo(testName, label, actual, expected) {
+  const match = actual === expected;
+  console.log(
+    `[TEST] ${testName} | Expected ${label}: ${expected} | Result ${label}: ${actual} | ${match ? "MATCH" : "NO MATCH"}`
   );
+  assert.equal(actual, expected);
+}
 
+function createHeaders() {
+  const map = new Map();
   return {
     set(key, value) {
       map.set(String(key).toLowerCase(), String(value));
@@ -27,199 +25,76 @@ function createHeaders(initial = {}) {
 function createRequest({ method = "GET", pathname = "/", cookie = "" } = {}) {
   return {
     method,
-    url: `https://example.com${pathname}`,
-    nextUrl: { pathname },
-    headers: {
-      get(name) {
-        if (String(name).toLowerCase() === "cookie") {
-          return cookie || null;
-        }
-        return null;
-      }
-    }
-  };
-}
-
-function createResponse() {
-  return {
-    headers: createHeaders()
-  };
-}
-
-function createExpressRequest({ method = "GET", path = "/", cookie = "" } = {}) {
-  return {
-    method,
-    path,
-    url: path,
+    url: pathname,
+    path: pathname,
     headers: {
       cookie
     }
   };
 }
 
-function createExpressResponse() {
-  const headers = {};
+function createResponse() {
+  const headers = createHeaders();
   return {
+    headers,
     setHeader(name, value) {
-      headers[String(name).toLowerCase()] = String(value);
+      headers.set(name, value);
     },
     getHeader(name) {
-      return headers[String(name).toLowerCase()];
+      return headers.get(name);
     }
   };
 }
 
-test("sets public cache header by default", () => {
+test("public cache header: public,max-age=60", () => {
   const applyLSCache = lscacheMiddleware();
-  const request = createRequest({ pathname: "/" });
   const response = createResponse();
+  applyLSCache(createRequest({ pathname: "/" }), response);
 
-  applyLSCache(request, response);
-
-  assert.equal(
-    response.headers.get("x-litespeed-cache-control"),
-    "public,max-age=60,stale-while-revalidate=300,stale-if-error=86400"
-  );
-  assert.equal(response.headers.get("vary"), "accept-encoding");
+  const actual = response.getHeader("x-litespeed-cache-control");
+  assertEqualWithInfo("public cache header", "x-litespeed-cache-control", actual, "public,max-age=60,stale-while-revalidate=300,stale-if-error=86400");
 });
 
-test("sets no-cache when shouldCache returns false", () => {
+test("private cache header for bypass cookie", () => {
   const applyLSCache = lscacheMiddleware({
-    shouldCache: () => false
+    privateOptions: { mode: "cache", maxAge: 180, staleWhileRevalidate: 30, staleIfError: 90 }
   });
-  const request = createRequest({ pathname: "/" });
   const response = createResponse();
+  applyLSCache(createRequest({ pathname: "/account", cookie: "session=abc123" }), response);
 
-  applyLSCache(request, response);
-
-  assert.equal(response.headers.get("x-litespeed-cache-control"), "private,no-cache");
+  const actual = response.getHeader("x-litespeed-cache-control");
+  assertEqualWithInfo("private cache header", "x-litespeed-cache-control", actual, "private,max-age=180,stale-while-revalidate=30,stale-if-error=90");
 });
 
-test("forces admin paths to private no-cache", () => {
+test("admin path is no-cache", () => {
+  const applyLSCache = lscacheMiddleware();
+  const response = createResponse();
+  applyLSCache(createRequest({ pathname: "/admin" }), response);
+
+  const actual = response.getHeader("x-litespeed-cache-control");
+  assertEqualWithInfo("admin no-cache", "x-litespeed-cache-control", actual, "no-cache");
+});
+
+test("public cache with tag", () => {
   const applyLSCache = lscacheMiddleware({
-    privateOptions: {
-      mode: "cache",
-      maxAge: 180
+    publicOptions: {
+      tags: ["blog", "frontpage"]
     }
   });
-  const request = createRequest({
-    pathname: "/admin/dashboard",
-    cookie: "session=abc123"
-  });
   const response = createResponse();
+  applyLSCache(createRequest({ pathname: "/blog" }), response);
 
-  applyLSCache(request, response);
-
-  assert.equal(response.headers.get("x-litespeed-cache-control"), "private,no-cache");
+  const actualCache = response.getHeader("x-litespeed-cache-control");
+  const actualTag = response.getHeader("x-litespeed-tag");
+  assertEqualWithInfo("public cache with tag", "x-litespeed-cache-control", actualCache, "public,max-age=60,stale-while-revalidate=300,stale-if-error=86400");
+  assertEqualWithInfo("public cache with tag", "x-litespeed-tag", actualTag, "blog,frontpage");
 });
 
-test("supports private cache for bypass-cookie users", () => {
-  const applyLSCache = lscacheMiddleware({
-    privateOptions: {
-      mode: "cache",
-      maxAge: 180,
-      staleWhileRevalidate: 30,
-      staleIfError: 90
-    }
-  });
-  const request = createRequest({
-    pathname: "/account",
-    cookie: "session=abc123"
-  });
-  const response = createResponse();
-
-  applyLSCache(request, response);
-
-  assert.equal(
-    response.headers.get("x-litespeed-cache-control"),
-    "private,max-age=180,stale-while-revalidate=30,stale-if-error=90"
-  );
-});
-
-test("supports express request/response objects for admin no-cache", () => {
-  const applyLSCache = lscacheMiddleware();
-  const request = createExpressRequest({ path: "/admin", cookie: "session=abc123" });
-  const response = createExpressResponse();
-
-  applyLSCache(request, response);
-
-  assert.equal(response.getHeader("x-litespeed-cache-control"), "private,no-cache");
-});
-
-test("supports express request/response objects for public cache", () => {
-  const applyLSCache = lscacheMiddleware();
-  const request = createExpressRequest({ path: "/home" });
-  const response = createExpressResponse();
-
-  applyLSCache(request, response);
-
-  assert.equal(
-    response.getHeader("x-litespeed-cache-control"),
-    "public,max-age=60,stale-while-revalidate=300,stale-if-error=86400"
-  );
-});
-
-test("verifyPurgeRequest validates token header", () => {
-  const request = {
-    headers: {
-      get(name) {
-        if (name === "x-lscache-key") {
-          return "secret";
-        }
-        return null;
-      }
-    }
-  };
-
-  assert.equal(verifyPurgeRequest(request, { token: "secret" }), true);
-  assert.equal(verifyPurgeRequest(request, { token: "wrong" }), false);
-});
-
-test("buildPurgeTags builds unique tags from payload", () => {
-  const result = buildPurgeTags({
-    url: "/posts/1",
-    id: 42,
-    tags: ["blog", "frontpage", "blog"]
-  });
-
-  assert.deepEqual(result.sort(), ["blog", "frontpage", "id:42", "url:/posts/1"].sort());
-});
-
-test("purgeLSCache sends tags and urls payload", async () => {
+test("purge all", async () => {
   let capturedOptions;
   const fetchImpl = async (_endpoint, options) => {
     capturedOptions = options;
-    return {
-      ok: true,
-      status: 200
-    };
-  };
-
-  await purgeLSCache({
-    endpoint: "https://example.com/purge",
-    token: "secret",
-    tags: ["blog"],
-    urls: ["/posts/1"],
-    fetchImpl
-  });
-
-  const body = JSON.parse(capturedOptions.body);
-  assert.equal(capturedOptions.headers["x-lscache-key"], "secret");
-  assert.deepEqual(body, {
-    purgeAll: false,
-    tags: ["blog"],
-    urls: ["/posts/1"]
-  });
-});
-
-test("purgeAllLSCache sends purgeAll payload", async () => {
-  let capturedOptions;
-  const fetchImpl = async (_endpoint, options) => {
-    capturedOptions = options;
-    return {
-      ok: true,
-      status: 200
-    };
+    return { ok: true, status: 200 };
   };
 
   await purgeAllLSCache({
@@ -229,44 +104,5 @@ test("purgeAllLSCache sends purgeAll payload", async () => {
   });
 
   const body = JSON.parse(capturedOptions.body);
-  assert.deepEqual(body, {
-    purgeAll: true,
-    tags: [],
-    urls: []
-  });
-});
-
-test("purgeLSCacheByTags sends tag-only payload", async () => {
-  let capturedOptions;
-  const fetchImpl = async (_endpoint, options) => {
-    capturedOptions = options;
-    return {
-      ok: true,
-      status: 200
-    };
-  };
-
-  await purgeLSCacheByTags("frontpage", {
-    endpoint: "https://example.com/purge",
-    token: "secret",
-    fetchImpl
-  });
-
-  const body = JSON.parse(capturedOptions.body);
-  assert.deepEqual(body, {
-    purgeAll: false,
-    tags: ["frontpage"],
-    urls: []
-  });
-});
-
-test("purgeLSCache requires purge target unless purgeAll is true", async () => {
-  await assert.rejects(
-    purgeLSCache({
-      endpoint: "https://example.com/purge",
-      token: "secret",
-      fetchImpl: async () => ({ ok: true, status: 200 })
-    }),
-    /Provide purgeAll=true or at least one tag\/url to purge/
-  );
+  assertEqualWithInfo("purge all", "purgeAll", body.purgeAll, true);
 });

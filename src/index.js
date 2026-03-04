@@ -30,6 +30,10 @@ function setHeaderValue(response, name, value) {
   }
 }
 
+function withNoCacheControl(response, cacheControlHeader = DEFAULT_HEADER) {
+  setHeaderValue(response, cacheControlHeader, "no-cache");
+}
+
 function withPrivateControl(response, opts = {}) {
   const {
     cacheControlHeader = DEFAULT_HEADER,
@@ -55,6 +59,8 @@ function withPrivateControl(response, opts = {}) {
 function withPublicControl(response, opts = {}) {
   const {
     cacheControlHeader = DEFAULT_HEADER,
+    tagHeader = "x-litespeed-tag",
+    tags = [],
     maxAge = 60,
     staleWhileRevalidate = 300,
     staleIfError = 86400,
@@ -69,6 +75,10 @@ function withPublicControl(response, opts = {}) {
 
   setHeaderValue(response, cacheControlHeader, value);
   setHeaderValue(response, "vary", Array.isArray(vary) ? vary.join(",") : String(vary));
+
+  if (Array.isArray(tags) && tags.length > 0) {
+    setHeaderValue(response, tagHeader, tags.map((tag) => String(tag)).join(","));
+  }
 }
 
 function getRequestPathname(request) {
@@ -114,7 +124,12 @@ export function lscacheMiddleware(config = {}) {
     const reqCookies = getHeaderValue(request?.headers, "cookie") || "";
     const hasBypassCookie = cookieBypassList.some((cookieName) => reqCookies.includes(`${cookieName}=`));
 
-    if (isAdminPath(pathname) || !shouldCache(request)) {
+    if (isAdminPath(pathname)) {
+      withNoCacheControl(response, cacheControlHeader);
+      return response;
+    }
+
+    if (!shouldCache(request)) {
       withPrivateControl(response, { cacheControlHeader });
       return response;
     }

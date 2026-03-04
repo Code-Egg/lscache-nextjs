@@ -1,7 +1,36 @@
 const DEFAULT_HEADER = "x-litespeed-cache-control";
 const DEFAULT_PURGE_HEADER = "x-lscache-key";
 
-function withPrivateControl(headers, opts = {}) {
+function getHeaderValue(headers, name) {
+  if (!headers) {
+    return undefined;
+  }
+
+  if (typeof headers.get === "function") {
+    return headers.get(name);
+  }
+
+  const lowerName = String(name).toLowerCase();
+  return headers[name] ?? headers[lowerName];
+}
+
+function setHeaderValue(response, name, value) {
+  if (response?.headers && typeof response.headers.set === "function") {
+    response.headers.set(name, value);
+    return;
+  }
+
+  if (typeof response?.setHeader === "function") {
+    response.setHeader(name, value);
+    return;
+  }
+
+  if (typeof response?.header === "function") {
+    response.header(name, value);
+  }
+}
+
+function withPrivateControl(response, opts = {}) {
   const {
     cacheControlHeader = DEFAULT_HEADER,
     mode = "no-cache",
@@ -16,14 +45,14 @@ function withPrivateControl(headers, opts = {}) {
       `stale-while-revalidate=${staleWhileRevalidate}`,
       `stale-if-error=${staleIfError}`
     ].join(",");
-    headers.set(cacheControlHeader, value);
+    setHeaderValue(response, cacheControlHeader, value);
     return;
   }
 
-  headers.set(cacheControlHeader, "private,no-cache");
+  setHeaderValue(response, cacheControlHeader, "private,no-cache");
 }
 
-function withPublicControl(headers, opts = {}) {
+function withPublicControl(response, opts = {}) {
   const {
     cacheControlHeader = DEFAULT_HEADER,
     maxAge = 60,
@@ -38,8 +67,8 @@ function withPublicControl(headers, opts = {}) {
     `stale-if-error=${staleIfError}`
   ].join(",");
 
-  headers.set(cacheControlHeader, value);
-  headers.set("vary", Array.isArray(vary) ? vary.join(",") : String(vary));
+  setHeaderValue(response, cacheControlHeader, value);
+  setHeaderValue(response, "vary", Array.isArray(vary) ? vary.join(",") : String(vary));
 }
 
 function getRequestPathname(request) {
@@ -47,9 +76,17 @@ function getRequestPathname(request) {
     return request.nextUrl.pathname;
   }
 
+  if (request?.path) {
+    return request.path;
+  }
+
   const rawUrl = request?.url;
   if (!rawUrl) {
     return "";
+  }
+
+  if (typeof rawUrl === "string" && rawUrl.startsWith("/")) {
+    return rawUrl.split("?")[0];
   }
 
   try {
@@ -74,23 +111,23 @@ export function lscacheMiddleware(config = {}) {
 
   return function applyLSCache(request, response) {
     const pathname = getRequestPathname(request);
-    const reqCookies = request?.headers?.get?.("cookie") || "";
+    const reqCookies = getHeaderValue(request?.headers, "cookie") || "";
     const hasBypassCookie = cookieBypassList.some((cookieName) => reqCookies.includes(`${cookieName}=`));
 
     if (isAdminPath(pathname) || !shouldCache(request)) {
-      withPrivateControl(response.headers, { cacheControlHeader });
+      withPrivateControl(response, { cacheControlHeader });
       return response;
     }
 
     if (hasBypassCookie) {
-      withPrivateControl(response.headers, {
+      withPrivateControl(response, {
         cacheControlHeader,
         ...privateOptions
       });
       return response;
     }
 
-    withPublicControl(response.headers, {
+    withPublicControl(response, {
       cacheControlHeader,
       ...publicOptions
     });
@@ -100,7 +137,7 @@ export function lscacheMiddleware(config = {}) {
 }
 
 export function verifyPurgeRequest(request, { token, header = DEFAULT_PURGE_HEADER } = {}) {
-  const provided = request.headers.get(header);
+  const provided = getHeaderValue(request?.headers, header);
   return Boolean(token && provided && provided === token);
 }
 

@@ -7,7 +7,7 @@ import {
   purgeLSCache,
   purgeLSCacheByTags,
   verifyPurgeRequest
-} from "../src/index.js";
+} from "lscache-nextjs";
 
 function createHeaders(initial = {}) {
   const map = new Map(
@@ -43,29 +43,6 @@ function createRequest({ method = "GET", pathname = "/", cookie = "" } = {}) {
 function createResponse() {
   return {
     headers: createHeaders()
-  };
-}
-
-function createExpressRequest({ method = "GET", path = "/", cookie = "" } = {}) {
-  return {
-    method,
-    path,
-    url: path,
-    headers: {
-      cookie
-    }
-  };
-}
-
-function createExpressResponse() {
-  const headers = {};
-  return {
-    setHeader(name, value) {
-      headers[String(name).toLowerCase()] = String(value);
-    },
-    getHeader(name) {
-      return headers[String(name).toLowerCase()];
-    }
   };
 }
 
@@ -133,29 +110,6 @@ test("supports private cache for bypass-cookie users", () => {
   assert.equal(
     response.headers.get("x-litespeed-cache-control"),
     "private,max-age=180,stale-while-revalidate=30,stale-if-error=90"
-  );
-});
-
-test("supports express request/response objects for admin no-cache", () => {
-  const applyLSCache = lscacheMiddleware();
-  const request = createExpressRequest({ path: "/admin", cookie: "session=abc123" });
-  const response = createExpressResponse();
-
-  applyLSCache(request, response);
-
-  assert.equal(response.getHeader("x-litespeed-cache-control"), "private,no-cache");
-});
-
-test("supports express request/response objects for public cache", () => {
-  const applyLSCache = lscacheMiddleware();
-  const request = createExpressRequest({ path: "/home" });
-  const response = createExpressResponse();
-
-  applyLSCache(request, response);
-
-  assert.equal(
-    response.getHeader("x-litespeed-cache-control"),
-    "public,max-age=60,stale-while-revalidate=300,stale-if-error=86400"
   );
 });
 

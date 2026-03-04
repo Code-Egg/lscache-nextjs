@@ -39,6 +39,6 @@ jobs:
           sudo npm install git+https://github.com/Code-Egg/lscache-nestjs.git
           
           echo 'Setup test'
-          sudo curl -o app/test/test_lscache.py https://raw.githubusercontent.com/Code-Egg/lscache-nestjs/main/test/test_lscache.js
+          sudo curl -o test/test_lscache.py https://raw.githubusercontent.com/Code-Egg/lscache-nestjs/main/test/test_lscache.js
           echo 'Test'
           sudo node --test test/test_lscache.js

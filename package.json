@@ -19,8 +19,8 @@
     "litespeed",
     "lscache",
     "nestjs",
-    "nest"
+    "cache"
   ],
-  "author": "",
+  "author": "Egg",
   "license": "MIT"
 }

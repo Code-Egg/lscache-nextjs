@@ -31,7 +31,7 @@ jobs:
           sudo rm -rf demo
           sudo nest new demo --package-manager npm
           cd demo; sudo ls -al
-          sudo echo "require('./dist/main');" > app.js
+          echo "require('./dist/main');" | sudo tee app.js > /dev/nul
           echo 'npm run build'
           sudo npm run build; sudo pkill lsnode
 

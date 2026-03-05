@@ -90,6 +90,37 @@ test("public cache with tag", () => {
   assertEqualWithInfo("public cache with tag", "x-litespeed-tag", actualTag, "blog,frontpage");
 });
 
+test("public maxAge=0 or cacheability=no-cache sets no-cache", () => {
+  const byMaxAge = lscacheMiddleware({
+    publicOptions: {
+      maxAge: 0
+    }
+  });
+  const responseByMaxAge = createResponse();
+  byMaxAge(createRequest({ pathname: "/news" }), responseByMaxAge);
+  assertEqualWithInfo(
+    "public maxAge=0",
+    "x-litespeed-cache-control",
+    responseByMaxAge.getHeader("x-litespeed-cache-control"),
+    "no-cache"
+  );
+
+  const byCacheability = lscacheMiddleware({
+    publicOptions: {
+      cacheability: "no-cache",
+      maxAge: 120
+    }
+  });
+  const responseByCacheability = createResponse();
+  byCacheability(createRequest({ pathname: "/news" }), responseByCacheability);
+  assertEqualWithInfo(
+    "public cacheability=no-cache",
+    "x-litespeed-cache-control",
+    responseByCacheability.getHeader("x-litespeed-cache-control"),
+    "no-cache"
+  );
+});
+
 test("purge all", async () => {
   let capturedOptions;
   const fetchImpl = async (_endpoint, options) => {

@@ -61,11 +61,17 @@ function withPublicControl(response, opts = {}) {
     cacheControlHeader = DEFAULT_HEADER,
     tagHeader = "x-litespeed-tag",
     tags = [],
+    cacheability = "public",
     maxAge = 60,
     staleWhileRevalidate = 300,
     staleIfError = 86400,
     vary = ["accept-encoding"]
   } = opts;
+
+  if (Number(maxAge) === 0 || cacheability === "no-cache") {
+    withNoCacheControl(response, cacheControlHeader);
+    return;
+  }
 
   const value = [
     `public,max-age=${maxAge}`,

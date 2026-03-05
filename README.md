@@ -87,6 +87,48 @@ async function bootstrap() {
 bootstrap();
 ```
 
+### Why this pattern
+
+You only define cache policy once in `main.ts` and keep controllers clean.
+No need to call `res.setHeader("X-LiteSpeed-Cache-Control", "...")` in every controller.
+
+### Route map example (different TTL by path)
+
+```ts
+// main.ts
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { lscacheMiddleware } from "lscache-nestjs";
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  const cache120 = lscacheMiddleware({
+    publicOptions: { maxAge: 120, tags: ["blog"] }
+  });
+  const cache600 = lscacheMiddleware({
+    publicOptions: { maxAge: 600, tags: ["post"] }
+  });
+  const noCache = lscacheMiddleware({
+    publicOptions: { maxAge: 0 }
+  });
+
+  app.use((req, res, next) => {
+    if (req.path === "/blog") {
+      cache120(req, res);
+    } else if (req.path.startsWith("/post/")) {
+      cache600(req, res);
+    } else if (req.path.startsWith("/admin")) {
+      noCache(req, res);
+    }
+    next();
+  });
+
+  await app.listen(3000);
+}
+bootstrap();
+```
+
 ## Cache-control examples
 
 ### Admin page (no-cache)

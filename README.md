@@ -87,11 +87,6 @@ async function bootstrap() {
 bootstrap();
 ```
 
-### Why this pattern
-
-You only define cache policy once in `main.ts` and keep controllers clean.
-No need to call `res.setHeader("X-LiteSpeed-Cache-Control", "...")` in every controller.
-
 ### Route map example (different TTL by path)
 
 ```ts
@@ -208,18 +203,18 @@ Both set:
 
 ```ts
 // lscache.controller.ts
-import { Controller, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
-import type { Request, Response } from "express";
+import { Controller, Get, Res } from '@nestjs/common';
+import type { Response } from 'express';
 
-@Controller("lscache")
+@Controller('lscache')
 export class LSCacheController {
-  @Post("purge-all")
-  purgeAll(@Req() req: Request, @Res() res: Response) {
-    if (req.header("x-lscache-key") !== process.env.LSCACHE_PURGE_TOKEN) {
-      throw new UnauthorizedException("Invalid purge token");
-    }
-    res.setHeader("X-LiteSpeed-Purge", "*");
-    return res.status(200).json({ ok: true, purge: "all" });
+  @Get('purge-all')
+  purgeAll(@Res() res: Response) {
+    res.setHeader('X-LiteSpeed-Purge', '*');
+    return res.status(200).json({
+      ok: true,
+      purge: 'all',
+    });
   }
 }
 ```
@@ -227,7 +222,7 @@ export class LSCacheController {
 Test purge-all URL:
 
 ```bash
-curl -k -X POST https://your-site.com/lscache/purge-all -H "x-lscache-key: YOUR_TOKEN"
+curl -k -X POST https://your-site.com/lscache/purge-all
 ```
 
 You can also use helper functions (`verifyPurgeRequest`, `buildPurgeTags`, `purgeLSCache`, `purgeAllLSCache`, `purgeLSCacheByTags`) for custom purge endpoint flows.
@@ -247,14 +242,9 @@ finished in 16.68s, 2998.27 req/s, 146.51KB/s
 requests: 50000 total, 50000 started, 50000 done, 50000 succeeded, 0 failed, 0 errored, 0 timeout
 status codes: 50000 2xx, 0 3xx, 0 4xx, 0 5xx
 
-## Notes
+### Restart NodeJS Process
+LiteSpeed/OpenLiteSpeed comes with python in detached mode by default, so you will need to restart python with following command to make any new settings take effect:
 
-- This package sets `x-litespeed-cache-control` values for LiteSpeed.
-- Deploy behind LiteSpeed/OpenLiteSpeed with LSCache enabled.
-- `privateOptions.mode` defaults to `"no-cache"`. Set `privateOptions.mode: "cache"` to enable private cache headers for cookie-bypassed users.
-- `/admin` and all subpaths under `/admin/*` are always set to `no-cache`.
-- Purge helpers:
-- `purgeAllLSCache()` for global purge.
-- `purgeLSCacheByTags(tags)` for tag-based purge.
-- `purgeLSCache({ purgeAll, tags, urls })` for full control.
-- Add path rules in LiteSpeed if you need finer-grained cache behavior.
+```
+pkill lsnode
+```

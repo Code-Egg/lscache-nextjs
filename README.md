@@ -149,6 +149,29 @@ When request has a bypass cookie (for example `session=...`) and `privateOptions
 
 - `x-litespeed-cache-control: private,max-age=180`
 
+### Contact page example (private cache 180s)
+
+```ts
+const applyLSCache = lscacheMiddleware({
+  cookieBypassList: ["session"],
+  privateOptions: {
+    mode: "cache",
+    maxAge: 180
+  }
+});
+
+app.use((req, res, next) => {
+  if (req.path === "/contact") {
+    applyLSCache(req, res);
+  }
+  next();
+});
+```
+
+Result on `/contact` when `session` cookie exists:
+
+- `x-litespeed-cache-control: private,max-age=180`
+
 ### Public cache with tags
 
 ```ts
